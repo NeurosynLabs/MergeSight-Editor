@@ -2,9 +2,9 @@
 
 **Smart text merge and comparison tool – Perfect for developers, writers, and content creators**
 
-[![Live Demo](https://img.shields.io/badge/🚀-Live%20Demo-success?style=for-the-badge)](https://neurosynlabs.github.io/merge-splitter-editor/)
+[![Live Demo](https://img.shields.io/badge/🚀-Live%20Demo-success?style=for-the-badge)](https://neurosynlabs.github.io/MergeSight-Editormerge-splitter-editor/)
 [![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/NeurosynLabs/merge-splitter-editor?style=for-the-badge)](https://github.com/NeurosynLabs/merge-splitter-editor/stargazers)
+[![Stars](https://img.shields.io/github/stars/NeurosynLabs/MergeSight-Editor?style=for-the-badge)](https://github.com/NeurosynLabs/MergeSight-Editor/stargazers)
 
 ---
 
