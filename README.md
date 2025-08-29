@@ -27,15 +27,9 @@
 
 ## 🚀 Live Demo
 
-**Try it now:** [https://neurosynlabs.github.io/merge-splitter-editor/](https://neurosynlabs.github.io/merge-splitter-editor/)
+**Try it now:** [https://neurosynlabs.github.io/MergeSight-Editor//](https://neurosynlabs.github.io/MergeSight-Editor/)
 
 ---
-
-## 🖼 Screenshots / GIFs
-
-![Editor Screenshot](docs/screenshot.png)
-![Popout Editor](docs/popout.png)
-*Replace placeholders with actual screenshots or GIFs.*
 
 ---
 
@@ -118,10 +112,10 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/NeurosynLabs/merge-splitter-editor.git
+git clone https://github.com/NeurosynLabs/MergeSight-Editor.git
 
 # Navigate to directory
-cd merge-splitter-editor
+cd MergeSight-Editor
 
 # Open index.html in your browser
 open index.html
