@@ -1,0 +1,2046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MergeSight-Editor</title>
+  <style>
+    :root{
+      --bg:#0d1117; --panel:#0d1117; --sidebar:#161b22;
+      --muted:#8b949e; --text:#c9d1d9; --accent:#58a6ff;
+      --border:#30363d; --surface:#0b1115;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+    button,input,select,textarea{font-family:inherit}
+    a{color:var(--accent);}
+
+    /* Force white-ish text everywhere */
+    html,body,body * { color: #ffffff !important; caret-color: #ffffff !important; }
+    ::placeholder { color: rgba(255,255,255,0.7) !important; }
+    ::selection { background: rgba(255,255,255,0.14) !important; color: #fff !important; }
+
+    /* Global visible scrollbars */
+    * { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.14) rgba(0,0,0,0.35); }
+    *::-webkit-scrollbar { width:12px; height:12px; }
+    *::-webkit-scrollbar-track { background: rgba(0,0,0,0.25); }
+    *::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius:8px; border:2px solid rgba(0,0,0,0.25); }
+
+    /* Header */
+    .header{display:flex;justify-content:space-between;align-items:center;padding:.5rem 1rem;border-bottom:1px solid var(--border);background:var(--panel);gap:.5rem;flex-wrap:wrap}
+    .header h1{font-size:1.05rem;margin:0;font-weight:600}
+    .controls{display:flex;gap:.5rem;align-items:center}
+
+    .btn{ background:#161b22;border:1px solid var(--border);color:var(--text); padding:.45rem .8rem;border-radius:8px;font-size:.92rem;cursor:pointer; display:inline-flex;align-items:center;gap:.5rem; }
+    .btn:hover{background:#21262d;border-color:#58a6ff}
+    .btn.secondary{background:transparent;border:1px solid var(--border)}
+    .select{ background:#0f1720;border:1px solid var(--border);color:var(--text);padding:.35rem .5rem;border-radius:8px; }
+
+    .toolbar{display:flex;gap:.4rem;padding:.3rem 1rem;border-bottom:1px solid var(--border);background:var(--panel);overflow-x:auto;position:relative}
+    .toolbar .tool{background:#0f1720;border:1px solid var(--border);padding:.35rem .5rem;border-radius:8px;color:var(--text);cursor:pointer;white-space:nowrap}
+    .toolbar .tool:hover{background:var(--accent);color:#07111a}
+
+    /* Global dropdown portal */
+    .global-dropdown{position:fixed;display:none;z-index:9999;max-height:320px;overflow:auto;padding:.5rem;border-radius:8px;background:#0f1720;border:1px solid var(--border);box-shadow:0 8px 24px rgba(0,0,0,0.6)}
+    .global-dropdown .tool{display:block;margin:6px 0;padding:.4rem .6rem;width:100%;text-align:left;background:#0f1720;border:1px solid var(--border);border-radius:8px}
+    .global-dropdown .tool:hover{background:var(--accent);color:#07111a}
+
+    .app{ display:flex;height:calc(100vh - 112px); gap:0; }
+    .sidebar{width:300px;background:var(--sidebar);border-right:1px solid var(--border);padding:.6rem;display:flex;flex-direction:column;gap:.5rem;min-width:200px}
+    .file-list{flex:1;overflow:auto;padding-top:.25rem}
+    .file-item{display:flex;align-items:center;justify-content:space-between;padding:.35rem .5rem;border-radius:8px;cursor:pointer}
+    .file-item:hover{background:rgba(88,166,255,0.06)}
+    .file-item .left{display:flex;gap:.5rem;align-items:center;min-width:0}
+    .file-item .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:170px}
+    .file-item .actions{display:flex;align-items:center;gap:.5rem}
+
+    /* Enhanced alignment system - Force word wrap across all panes */
+    .shared-scroll-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    
+    .shared-scroll {
+      display: flex;
+      height: 100%;
+      width: 100%;
+      overflow-y: auto;
+      overflow-x: hidden;
+    }
+    
+    .pane-left, .pane-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      width: 50%;
+
+    }
+    
+    /* Enhanced editor and preview with forced word wrap and height sync */
+
+      /* Main editor + preview */
+      .editor, .preview {
+          flex: 1;
+          width: 100%;
+          padding: 1rem;
+          background-color: #0d1117;
+          color: #ffffff;
+          border: none;
+          resize: none;
+          font-family: ui-monospace, "Courier New", monospace;
+          font-size: 12px;
+          line-height: 1.5;
+          height: auto !important; /* Expand with content */
+          white-space: pre-wrap !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+          overflow: visible !important; /* Let shared scroll handle overflow */
+      }
+
+      /* Popout editor + preview */
+      .pop-shared-scroll .editor,
+      .pop-shared-scroll .preview {
+          white-space: pre-wrap !important;
+          word-wrap: break-word !important;
+          overflow-wrap: break-word !important;
+          min-height: 900px !important;
+          height: auto !important;
+          overflow: visible !important; /* No independent scrollbar */
+      }
+
+    
+    /* Pane headers with uniform height */
+    .pane-header {
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+      background: transparent;
+      flex-shrink: 0;
+    }
+    
+    /* Enhanced border between panes */
+    .pane-right {
+      border-left: 2px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    /* Line numbering system with word wrap support */
+    .editor-container {
+      position: relative;
+      display: flex;
+      flex: 1;
+    }
+    
+    .line-numbers {
+      background: #161b22;
+      color: #8b949e;
+      padding: 1rem 0.5rem 1rem 1rem;
+      border-right: 1px solid #30363d;
+      font-family: ui-monospace, "Courier New", monospace;
+      font-size: 12px;
+      line-height: .1;
+      text-align: right;
+      -webkit-user-select: none;
+      user-select: none;
+      min-width: 50px;
+      overflow: hidden;
+      white-space: pre;
+    }
+    
+    .line-numbers .line {
+      height: 1.5em;
+      display: block;
+      line-height: 1.5;
+    }
+    
+    .editor-wrapper {
+      flex: 1;
+      position: relative;
+      overflow: visible;
+    }
+
+    /* MergeSight-Editor markdown formatting with syntax highlighting */
+    .preview {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace;
+      line-height: .9;
+      color: #c9d1d9;
+      font-size: 12px;
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+    }
+    
+    /* Enhanced inline code highlighting - FIXED */
+    .preview code:not([class*="language-"]) {
+      background-color: rgba(110, 118, 129, 0.4) !important;
+      color: #ff7b72 !important;
+      padding: 0.2em 0.4em !important;
+      border-radius: 6px !important
+      font-size: 15% !important;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace !important;
+      border: 1px solid rgba(110, 118, 129, 0.2) !important;
+    }
+    
+    /* Enhanced block code highlighting */
+    .preview pre {
+      background: #161b22 !important;
+      border: 1px solid #30363d !important;
+      border-radius: 6px !important;
+      padding: 9px !important;
+      margin: 8px 0 !important;
+      overflow: auto !important;
+      white-space: pre !important;
+    }
+    
+    .preview pre code {
+      background-color: transparent !important;
+      padding: 0 !important;
+      border-radius: 0 !important;
+      border: none !important;
+      color: #c9d1d9 !important;
+      white-space: pre !important;
+    }
+    
+    /* Enhanced headers with syntax highlighting */
+    .preview h1, .preview h2, .preview h3, .preview h4, .preview h5, .preview h6 {
+      margin: 0;
+      padding: 0;
+      font-weight: 600;
+      line-height: 1.5;
+      color: #ffffff !important;
+      font-size: 12px;
+    }
+    
+    .preview h1 { 
+      font-size: 16px !important; 
+      border-bottom: 1px solid #30363d; 
+      padding-bottom: 0.3em; 
+      color: #58a6ff !important;
+    }
+    .preview h2 { 
+      font-size: 15px !important; 
+      border-bottom: 1px solid #30363d; 
+      padding-bottom: 0.3em; 
+      color: #58a6ff !important;
+    }
+    .preview h3 { 
+      font-size: 12px !important; 
+      color: #ffa657 !important;
+    }
+    .preview h4 { 
+      font-size: 12px !important; 
+      color: #ffa657 !important;
+    }
+    .preview h5 { 
+      font-size: 12px !important; 
+      color: #ffa657 !important;
+    }
+    .preview h6 { 
+      font-size: 12px !important; 
+      color: #8b949e !important;
+    }
+    
+    /* Enhanced list styling */
+    .preview ul, .preview ol {
+      padding-left: 2em;
+      margin: 0;
+    }
+    
+    .preview li {
+      margin: 0;
+      padding: 0;
+      line-height: 1.5;
+    }
+    
+    /* Enhanced blockquote styling */
+    .preview blockquote {
+      padding-left: 1em;
+      color: #8b949e !important;
+      border-left: 0.25em solid #30363d;
+      margin: 0;
+      font-style: italic;
+    }
+    
+    /* Enhanced link styling */
+    .preview a {
+      color: #58a6ff !important;
+      text-decoration: none;
+    }
+    
+    .preview a:hover {
+      text-decoration: underline;
+    }
+    
+    /* Enhanced table styling */
+    .preview table {
+      border-spacing: 0;
+      border-collapse: collapse;
+      margin: 8px 0;
+      width: 100%;
+    }
+    
+    .preview table th, .preview table td {
+      padding: 6px 13px;
+      border: 1px solid #30363d;
+      line-height: 1.5;
+    }
+    
+    .preview table th {
+      font-weight: 200;
+      background-color: #161b22;
+      color: #ffffff !important;
+    }
+    
+    .preview table tr:nth-child(2n) {
+      background-color: #0d1117;
+    }
+    
+    /* Enhanced task list styling */
+    .preview .task-list-item {
+      list-style-type: none;
+    }
+    
+    .preview .task-list-item input[type="checkbox"] {
+      margin: 0 0.2em 0.25em -1.4em;
+      vertical-align: middle;
+      accent-color: #58a6ff;
+    }
+    
+    /* Enhanced syntax highlighting for GitHub theme */
+    .preview .hljs {
+      background: transparent !important;
+      color: #c9d1d9 !important;
+    }
+    
+    .preview .hljs-keyword {
+      color: #ff7b72 !important;
+      font-weight: 600;
+    }
+    
+    .preview .hljs-string {
+      color: #a5d6ff !important;
+    }
+    
+    .preview .hljs-number {
+      color: #79c0ff !important;
+    }
+    
+    .preview .hljs-comment {
+      color: #8b949e !important;
+      font-style: italic;
+    }
+    
+    .preview .hljs-function {
+      color: #d2a8ff !important;
+    }
+    
+    .preview .hljs-title {
+      color: #d2a8ff !important;
+      font-weight: 600;
+    }
+    
+    .preview .hljs-params {
+      color: #c9d1d9 !important;
+    }
+    
+    .preview .hljs-property {
+      color: #79c0ff !important;
+    }
+    
+    .preview .hljs-variable {
+      color: #ffa657 !important;
+    }
+    
+    .preview .hljs-literal {
+      color: #ff7b72 !important;
+    }
+    
+    .preview .hljs-punctuation {
+      color: #c9d1d9 !important;
+    }
+    
+    .preview .hljs-operator {
+      color: #ff7b72 !important;
+    }
+    
+    .preview .hljs-tag {
+      color: #ff7b72 !important;
+    }
+    
+    .preview .hljs-attr {
+      color: #a5d6ff !important;
+    }
+    
+    .preview .hljs-name {
+      color: #ff7b72 !important;
+    }
+    
+    /* Enhanced emphasis styling */
+    .preview strong {
+      color: #ffffff !important;
+      font-weight: 600;
+    }
+    
+    .preview em {
+      color: #ffa657 !important;
+      font-style: italic;
+    }
+    
+    .preview del {
+      color: #8b949e !important;
+      text-decoration: line-through;
+    }
+
+    /* popout shared scroll with word wrap */
+    .pop-shared-scroll {
+      display:flex;
+      flex:1;
+      overflow-y:auto;
+      overflow-x:hidden;
+      height:100%;
+      width:100%;
+    }
+    
+    .pop-shared-scroll .editor, .pop-shared-scroll .preview {
+      white-space: pre-wrap !important;
+      word-wrap: break-word !important;
+      overflow-wrap: break-word !important;
+      min-height:100%;
+    }
+
+    /* Add border between popout panes */
+    .pop-shared-scroll .preview {
+      border-left: 2px solid rgba(255, 255, 255, 0.1);
+    }
+
+    /* Better focus states */
+    .editor:focus {
+      outline: 2px solid #58a6ff;
+      outline-offset: -2px;
+    }
+    
+    /* Status indicator */
+    .status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      z-index: 1000;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    
+    .status.show {
+      opacity: 1;
+    }
+    
+    /* Word count indicator */
+    .word-count {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      z-index: 1000;
+    }
+
+    /* modal/popout */
+    .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:120}
+    .modal{width:92%;height:88%;background:var(--panel);border-radius:12px;display:flex;flex-direction:column;overflow:auto;border:1px solid var(--border)}
+    .modal .head{display:flex;justify-content:space-between;align-items:center;padding:.6rem 1rem;border-bottom:1px solid var(--border)}
+    .modal .body{display:flex;flex:1;overflow:auto}
+
+    @media (max-width:900px){
+      .app{flex-direction:column;height:auto}
+      .sidebar{width:100%;display:flex;overflow:auto;gap:.4rem;padding:.4rem}
+      .shared-scroll{flex-direction:column}
+      .editor,.preview{height:50vh}
+    }
+
+    /* file remove button styling */
+    .file-remove { background: transparent; border: none; color: rgba(255,255,255,0.95); cursor:pointer; font-size:1.05rem; padding:4px; border-radius:6px; }
+    .file-remove:hover { background: rgba(255,255,255,0.06); color:#ff8080; }
+
+    .file-popout { color: var(--accent); cursor: pointer; font-size: 1.05rem; text-decoration: none; padding:2px; }
+    .icon-btn { background: transparent; border: none; color: var(--accent); font-size: 1.05rem; cursor: pointer; padding: 4px; }
+
+    .pop-toolbar{display:flex;gap:.4rem;padding:.3rem;border-bottom:1px solid var(--border);background:var(--panel);overflow-x:auto}
+    .pop-toolbar .tool{background:#0f1720;border:1px solid var(--border);padding:.35rem .5rem;border-radius:8px;color:var(--text);cursor:pointer}
+    .popout-arrow { display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:8px; border:1px solid var(--border); background:#0f1720; color:var(--accent); cursor:pointer; }
+    .popout-arrow:hover { background:var(--accent); color:#07111a; }
+  </style>
+
+  <!-- External libs -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/markdown-it/13.0.1/markdown-it.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-emoji@2.0.2/dist/markdown-it-emoji.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-sub@1.0.0/dist/markdown-it-sub.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-sup@1.0.0/dist/markdown-it-sup.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-task-lists@2.1.1/dist/markdown-it-task-lists.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-footnote@3.0.3/dist/markdown-it-footnote.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-deflist@2.1.0/dist/markdown-it-deflist.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-abbr@1.0.4/dist/markdown-it-abbr.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-ins@3.0.1/dist/markdown-it-ins.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/markdown-it-mark@3.0.1/dist/markdown-it-mark.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/yaml.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/javascript.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/css.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/languages/xml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/json5@2.2.3/dist/index.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/asciidoctor@3.0.4/dist/browser/asciidoctor.min.js"></script>
+</head>
+<body>
+  <div class="header" role="banner">
+    <h1>MergeSight-Editor</h1>
+    <div class="controls">
+      <select id="file-type" class="select" title="File type">
+        <option value="markdown">Markdown (.md)</option>
+        <option value="html">HTML (.html)</option>
+        <option value="txt">Plain Text (.txt)</option>
+        <option value="asciidoc">AsciiDoc (.adoc)</option>
+        <option value="csv">CSV (.csv)</option>
+        <option value="yml">YAML (.yml)</option>
+        <option value="org">Org Mode (.org)</option>
+        <option value="json">JSON (.json)</option>
+        <option value="css">CSS (.css)</option>
+        <option value="js">JavaScript (.js)</option>
+      </select>
+      <button id="export-btn" class="btn" title="Export with selected file type">Export</button>
+      <button id="clear-files-btn" class="btn secondary" title="Clear all files">Clear All</button>
+      <button id="fullscreen-btn" class="btn secondary" title="Toggle fullscreen">⛶</button>
+      <button id="toggle-line-numbers" class="btn secondary" title="Toggle line numbers">#</button>
+      <button id="toggle-word-wrap" class="btn secondary" title="Toggle word wrap">↩</button>
+      <button id="toggle-syntax-highlighting" class="btn secondary" title="Toggle syntax highlighting">🎨</button>
+      <button id="toggle-theme" class="btn secondary" title="Toggle theme">🌙</button>
+      <button id="toggle-minimap" class="btn secondary" title="Toggle minimap">🗺</button>
+      <div id="file-info" style="font-size:0.9rem;color:var(--muted);margin-left:1rem;"></div>
+    </div>
+  </div>
+
+  <div id="toolbar" class="toolbar" role="toolbar" aria-label="Formatting toolbar"></div>
+  <div class="app">
+    <div class="sidebar" role="navigation" aria-label="Files sidebar">
+      <div style="display:flex;gap:.4rem">
+        <input id="file-upload" type="file" multiple style="display:none" />
+        <button id="upload-btn" class="btn" title="Upload files">Upload</button>
+        <button id="merge-btn" class="btn" title="Merge selected">Merge</button>
+      </div>
+      <div style="margin-top:.25rem;display:flex;gap:.4rem">
+        <input id="search" placeholder="Search files..." style="flex:1;padding:.4rem;border-radius:8px;border:1px solid var(--border);background:#0b1115;color:var(--text)"/>
+      </div>
+
+      <div class="file-list" id="file-list" role="list"></div>
+    </div>
+
+    <div class="shared-scroll-wrap">
+      <div class="shared-scroll" id="shared-scroll">
+        <div class="pane pane-left">
+          <div class="pane-header">
+            <div style="font-weight:600;">Editor</div>
+            <button id="main-popout" class="popout-arrow" title="Pop out active file" aria-label="Pop out active file">↗</button>
+          </div>
+          <div class="editor-container">
+            <div class="line-numbers" id="line-numbers"></div>
+            <div class="editor-wrapper">
+              <textarea id="editor" class="editor" spellcheck="false" placeholder="Open or upload a file..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="pane pane-right">
+          <div class="pane-header">
+            <div style="font-weight:600;">Preview</div>
+            <div style="font-size:.9rem;color:var(--muted)">Live</div>
+          </div>
+          <div class="preview-container" style="display:flex;flex:1;">
+            <div class="line-numbers preview-line-numbers" id="preview-line-numbers"></div>
+            <div id="preview" class="preview" style="flex:1;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="popout-container"></div>
+  
+  <div id="status" class="status"></div>
+  <div id="word-count" class="word-count"></div>
+
+  <div id="confirm-clear" style="display:none;position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:130;background:var(--panel);border:1px solid var(--border);padding:16px;border-radius:10px;width:320px;">
+    <div style="font-weight:600;margin-bottom:.5rem">Clear all files?</div>
+    <div style="margin-bottom:.75rem">This will remove all files from the sidebar and clear the editor. This cannot be undone.</div>
+    <div style="display:flex;gap:.5rem;justify-content:flex-end">
+      <button id="cancel-clear" class="btn secondary">Cancel</button>
+      <button id="do-clear" class="btn">Clear All</button>
+    </div>
+  </div>
+
+  <div id="global-dropdown" class="global-dropdown" role="menu" aria-hidden="true"></div>
+
+<script>
+
+
+const uid = (prefix='f') => prefix + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+const $ = (sel,root=document)=>root.querySelector(sel);
+function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+let files = [];
+let activeFileIndex = null;
+let mode = document.getElementById('file-type').value || 'markdown';
+let syntaxHighlightingEnabled = true;
+let wordWrapEnabled = true;
+
+// Elements
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const fileListEl = document.getElementById('file-list');
+const toolbarEl = document.getElementById('toolbar');
+const fileTypeSelect = document.getElementById('file-type');
+const exportBtn = document.getElementById('export-btn');
+const uploadBtn = document.getElementById('upload-btn');
+const mergeBtn = document.getElementById('merge-btn');
+const fileUploadInput = document.getElementById('file-upload');
+const clearFilesBtn = document.getElementById('clear-files-btn');
+const confirmClear = document.getElementById('confirm-clear');
+const cancelClear = document.getElementById('cancel-clear');
+const doClear = document.getElementById('do-clear');
+const searchInput = document.getElementById('search');
+const popoutContainer = document.getElementById('popout-container');
+const mainPopoutBtn = document.getElementById('main-popout');
+const globalDropdown = document.getElementById('global-dropdown');
+const sharedScroll = document.getElementById('shared-scroll');
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+const toggleLineNumbersBtn = document.getElementById('toggle-line-numbers');
+const toggleWordWrapBtn = document.getElementById('toggle-word-wrap');
+const toggleSyntaxHighlightingBtn = document.getElementById('toggle-syntax-highlighting');
+const fileInfoEl = document.getElementById('file-info');
+const statusEl = document.getElementById('status');
+const wordCountEl = document.getElementById('word-count');
+
+/* ---------- Status notification system ---------- */
+function showStatus(message, duration = 3000) {
+  statusEl.textContent = message;
+  statusEl.classList.add('show');
+  setTimeout(() => {
+    statusEl.classList.remove('show');
+  }, duration);
+}
+
+/* ---------- Word count system ---------- */
+function updateWordCount() {
+  if (!wordCountEl) return;
+  
+  const content = editor.value || '';
+  const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const characters = content.length;
+  const lines = content.split('\n').length;
+  
+  wordCountEl.textContent = `${words} words | ${characters} chars | ${lines} lines`;
+}
+
+/* ---------- CRITICAL: Perfect height synchronization system ---------- */
+function forceHeightSync() {
+  const editorEl = document.getElementById('editor');
+  const previewEl = document.getElementById('preview');
+  
+  if (!editorEl || !previewEl) return;
+  
+  // Force both elements to calculate their content height
+  editorEl.style.height = 'auto';
+  previewEl.style.height = 'auto';
+  
+  // Get the actual content heights
+  const editorScrollHeight = editorEl.scrollHeight;
+  const previewScrollHeight = previewEl.scrollHeight;
+  const containerHeight = sharedScroll ? sharedScroll.clientHeight : 400;
+  
+  // Use the maximum height to ensure both panes are identical
+  const maxHeight = Math.max(editorScrollHeight, previewScrollHeight, containerHeight);
+  
+  // Apply the same height to both elements
+  editorEl.style.height = maxHeight + 'px';
+  previewEl.style.height = maxHeight + 'px';
+  editorEl.style.minHeight = maxHeight + 'px';
+  previewEl.style.minHeight = maxHeight + 'px';
+  
+  // Force a layout recalculation
+  editorEl.offsetHeight;
+  previewEl.offsetHeight;
+  
+  console.log(`Height sync: Editor=${editorScrollHeight}, Preview=${previewScrollHeight}, Applied=${maxHeight}`);
+}
+
+/* ---------- Enhanced alignment system with perfect word wrap ---------- */
+function syncPaneAlignment() {
+  // Force consistent word wrap settings across all editors and previews
+  const allEditors = document.querySelectorAll('.editor');
+  const allPreviews = document.querySelectorAll('.preview');
+  
+  allEditors.forEach(el => {
+    if (wordWrapEnabled) {
+      el.style.whiteSpace = 'pre-wrap';
+      el.style.wordWrap = 'break-word';
+      el.style.overflowWrap = 'break-word';
+    } else {
+      el.style.whiteSpace = 'pre';
+      el.style.wordWrap = 'normal';
+      el.style.overflowWrap = 'normal';
+    }
+  });
+  
+  allPreviews.forEach(el => {
+    if (wordWrapEnabled) {
+      el.style.whiteSpace = 'pre-wrap';
+      el.style.wordWrap = 'break-word';
+      el.style.overflowWrap = 'break-word';
+    } else {
+      el.style.whiteSpace = 'pre';
+      el.style.wordWrap = 'normal';
+      el.style.overflowWrap = 'normal';
+    }
+  });
+  
+  // Force height synchronization after alignment
+  setTimeout(forceHeightSync, 50);
+}
+
+function updateLineNumbers() {
+  const lineNumbersEl = document.getElementById('line-numbers');
+  const previewLineNumbersEl = document.getElementById('preview-line-numbers');
+  if (!lineNumbersEl || !previewLineNumbersEl) return;
+  
+  const lines = editor.value.split('\n');
+  const lineCount = lines.length;
+  
+  let lineNumbersHTML = '';
+  for (let i = 1; i <= lineCount; i++) {
+    lineNumbersHTML += `<span class="line">${i}</span>\n`;
+  }
+  
+  lineNumbersEl.innerHTML = lineNumbersHTML;
+  previewLineNumbersEl.innerHTML = lineNumbersHTML;
+}
+
+/* ---------- Persistence (IndexedDB wrapper) ---------- */
+const IDB_NAME='ee-store', IDB_STORE='kv'; let idb=null;
+function idbOpen(){ return new Promise((res)=>{ if(!('indexedDB' in window)) return res(null); const r=indexedDB.open(IDB_NAME,1); r.onupgradeneeded=()=>{ try{ r.result.createObjectStore(IDB_STORE);}catch(e){} }; r.onsuccess=()=>res(r.result); r.onerror=()=>res(null); }); }
+async function idbGet(key){ if(!idb) idb = await idbOpen(); if(!idb) return JSON.parse(localStorage.getItem(key)||'null'); return new Promise((res)=>{ const tx=idb.transaction(IDB_STORE,'readonly'); const store=tx.objectStore(IDB_STORE); const rq=store.get(key); rq.onsuccess=()=>res(rq.result||null); rq.onerror=()=>res(null); }); }
+async function idbSet(key,val){ if(!idb) idb = await idbOpen(); if(!idb){ localStorage.setItem(key, JSON.stringify(val)); return true; } return new Promise((res)=>{ try{ const tx=idb.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put(val,key); tx.oncomplete=()=>res(true); tx.onerror=()=>res(false);}catch(e){res(false);} }); }
+
+/* ---------- Enhanced Toolbar definitions with GitHub-like behaviors ---------- */
+const TOOLBAR = {
+  markdown: [
+    {name:'**B**', label:'Bold', wrap:['**','**'], shortcut:'Ctrl+B'},
+    {name:'*I*', label:'Italic', wrap:['*','*'], shortcut:'Ctrl+I'},
+    {name:'~~S~~', label:'Strikethrough', wrap:['~~','~~']},
+    {name:'`C`', label:'Inline Code', wrap:['`','`'], shortcut:'Ctrl+E'},
+    {name:'```', label:'Code Block', wrap:['```\n','\n```'], shortcut:'Ctrl+Shift+K'},
+    {name:'# H1', label:'Header 1', wrap:['# ',''], shortcut:'Ctrl+1'},
+    {name:'## H2', label:'Header 2', wrap:['## ',''], shortcut:'Ctrl+2'},
+    {name:'### H3', label:'Header 3', wrap:['### ',''], shortcut:'Ctrl+3'},
+    {name:'> Quote', label:'Blockquote', wrap:['> ',''], shortcut:'Ctrl+Shift+.'},
+    {name:'• List', label:'Bullet List', wrap:['- ',''], shortcut:'Ctrl+Shift+8'},
+    {name:'1. List', label:'Numbered List', wrap:['1. ',''], shortcut:'Ctrl+Shift+7'},
+    {name:'- [ ]', label:'Task List', wrap:['- [ ] ','']},
+    {name:'🔗 Link', label:'Link', custom:true, shortcut:'Ctrl+K'},
+    {name:'🖼 Image', label:'Image', custom:true, shortcut:'Ctrl+Shift+I'},
+    {name:'📊 Table', label:'Table', custom:true, shortcut:'Ctrl+Shift+T'},
+    {name:'─── HR', label:'Horizontal Rule', text:'\n---\n'}
+  ],
+  html: [
+    {name:'<b>B</b>', label:'Bold', wrap:['<strong>','</strong>']},
+    {name:'<i>I</i>', label:'Italic', wrap:['<em>','</em>']},
+    {name:'<u>U</u>', label:'Underline', wrap:['<u>','</u>']},
+    {name:'<code>', label:'Code', wrap:['<code>','</code>']},
+    {name:'<pre>', label:'Pre', wrap:['<pre>','</pre>']},
+    {name:'<h1>', label:'H1', wrap:['<h1>','</h1>']},
+    {name:'<h2>', label:'H2', wrap:['<h2>','</h2>']},
+    {name:'<h3>', label:'H3', wrap:['<h3>','</h3>']},
+    {name:'<blockquote>', label:'Blockquote', wrap:['<blockquote>','</blockquote>']},
+    {name:'<ul>', label:'UL', wrap:['<ul><li>','</li></ul>']},
+    {name:'<ol>', label:'OL', wrap:['<ol><li>','</li></ol>']},
+    {name:'🔗 Link', label:'Link', custom:true},
+    {name:'🖼 Image', label:'Image', custom:true},
+    {name:'📊 Table', label:'Table', custom:true},
+    {name:'<hr>', label:'HR', text:'<hr>'}
+  ],
+  txt:[
+    {name:'UPPER', label:'Uppercase', custom:true},
+    {name:'lower', label:'Lowercase', custom:true},
+    {name:'Title', label:'Title Case', custom:true},
+    {name:'─── HR', label:'Horizontal Line', text:'\n---\n'}
+  ],
+  asciidoc:[
+    {name:'*B*', label:'Bold', wrap:['*','*']},
+    {name:'_I_', label:'Italic', wrap:['_','_']},
+    {name:'`C`', label:'Code', wrap:['`','`']},
+    {name:'= H1', label:'H1', wrap:['= ','']},
+    {name:'== H2', label:'H2', wrap:['== ','']},
+    {name:'=== H3', label:'H3', wrap:['=== ','']},
+    {name:'* List', label:'List', wrap:['* ','']},
+    {name:'. Num', label:'Numbered', wrap:['. ','']},
+    {name:'🔗 Link', label:'Link', custom:true},
+    {name:'🖼 Image', label:'Image', custom:true},
+    {name:'📊 Table', label:'Table', custom:true}
+  ],
+  csv:[
+    {name:'+ Row', label:'Add Row', custom:true},
+    {name:'+ Col', label:'Add Column', custom:true},
+    {name:'📊 Format', label:'Format Table', custom:true}
+  ],
+  yml:[
+    {name:'key:', label:'Key: Value', custom:true},
+    {name:'- item', label:'List Item', wrap:['- ','']},
+    {name:'📝 Validate', label:'Validate YAML', custom:true}
+  ],
+  org: [
+    {name:'*B*', label:'Bold', wrap:['*','*']},
+    {name:'/I/', label:'Italic', wrap:['/','/']},
+    {name:'=C=', label:'Code', wrap:['=','=']},
+    {name:'* H1', label:'H1', wrap:['* ','']},
+    {name:'** H2', label:'H2', wrap:['** ','']},
+    {name:'*** H3', label:'H3', wrap:['*** ','']},
+    {name:'- List', label:'List', wrap:['- ','']},
+    {name:'TODO', label:'TODO', wrap:['TODO ','']},
+    {name:'DONE', label:'DONE', wrap:['DONE ','']},
+  ],
+  json: [
+    {name:'{}', label:'Object', text:'{\n  "key": "value"\n}'},
+    {name:'[]', label:'Array', text:'[\n  "item1",\n  "item2"\n]'},
+    {name:'📝 Validate', label:'Validate JSON', custom:true},
+    {name:'🎨 Format', label:'Format JSON', custom:true}
+  ],
+  css: [
+    {name:'.class', label:'Class Selector', text:'.class-name {\n  property: value;\n}'},
+    {name:'#id', label:'ID Selector', text:'#element-id {\n  property: value;\n}'},
+    {name:'{}', label:'Rule Block', text:'selector {\n  property: value;\n}'},
+    {name:'/* */', label:'Comment', wrap:['/* ',' */']},
+    {name:'@media', label:'Media Query', text:'@media (max-width: 768px) {\n  /* styles */\n}'}
+  ],
+  js: [
+    {name:'function', label:'Function', text:'function name() {\n  // code\n}'},
+    {name:'=>', label:'Arrow Function', text:'const name = () => {\n  // code\n}'},
+    {name:'if', label:'If Statement', text:'if (condition) {\n  // code\n}'},
+    {name:'for', label:'For Loop', text:'for (let i = 0; i < array.length; i++) {\n  // code\n}'},
+    {name:'//', label:'Comment', wrap:['// ','']},
+    {name:'/* */', label:'Block Comment', wrap:['/* ',' */']}
+  ]
+};
+
+/* ---------- Enhanced markdown-it config with better syntax highlighting ---------- */
+const md = window.markdownit({
+  html: true,
+  breaks: true,
+  linkify: true,
+  typographer: true,
+  highlight: function(code, lang) {
+    try {
+      if (window.hljs && syntaxHighlightingEnabled) {
+        if (lang && hljs.getLanguage && hljs.getLanguage(lang)) {
+          const result = hljs.highlight(code, { language: lang, ignoreUnescapedHTML: true });
+          return `<pre><code class="hljs language-${lang}">${result.value}</code></pre>`;
+        }
+        const result = hljs.highlightAuto(code);
+        return `<pre><code class="hljs language-${result.language || 'plaintext'}">${result.value}</code></pre>`;
+      }
+    } catch (e) {
+      console.warn('Syntax highlighting error:', e);
+    }
+    return `<pre><code class="hljs">${escapeHtml(code)}</code></pre>`;
+  },
+})
+.use(window.markdownitEmoji)
+.use(window.markdownitSub)
+.use(window.markdownitSup)
+.use(window.markdownitTaskLists, { enabled: true, label: true })
+.use(window.markdownitFootnote)
+.use(window.markdownitDeflist)
+.use(window.markdownitAbbr)
+.use(window.markdownitIns)
+.use(window.markdownitMark);
+
+// Enhanced inline code renderer for markdown-it
+md.renderer.rules.code_inline = function(tokens, idx, options, env, renderer) {
+  const token = tokens[idx];
+  const attrs = token.attrJoin('class', 'inline-code-highlight');
+  return `<code${attrs}>${escapeHtml(token.content)}</code>`;
+};
+
+/* ---------- Global dropdown (portal) ---------- */
+let dropdownOpenFor = null;
+function showDropdown(items, anchorEl, onSelect){
+  globalDropdown.innerHTML = '';
+  items.forEach(t=>{
+    const b = document.createElement('button');
+    b.className = 'tool';
+    b.innerHTML = t.name || t.label;
+    b.title = `${t.label || t.name}${t.shortcut ? ` (${t.shortcut})` : ''}`;
+    b.onclick = (e)=>{ e.stopPropagation(); hideDropdown(); onSelect(t); };
+    globalDropdown.appendChild(b);
+  });
+  const r = anchorEl.getBoundingClientRect();
+  const pad = 6;
+  const top = r.bottom + pad;
+  let left = r.left;
+  left = Math.max(8, Math.min(left, window.innerWidth - 320));
+  globalDropdown.style.top = `${top}px`;
+  globalDropdown.style.left = `${left}px`;
+  globalDropdown.style.display = 'block';
+  globalDropdown.setAttribute('aria-hidden','false');
+  dropdownOpenFor = anchorEl;
+}
+function hideDropdown(){
+  globalDropdown.style.display = 'none';
+  globalDropdown.setAttribute('aria-hidden','true');
+  dropdownOpenFor = null;
+}
+document.addEventListener('click', (e)=>{
+  if(!globalDropdown.contains(e.target)) hideDropdown();
+}, {passive:true});
+
+/* Render enhanced toolbar */
+function renderToolbarFor(containerEl, targetEditor){
+  const container = containerEl;
+  if(!container) return;
+  container.innerHTML = '';
+
+  const tools = TOOLBAR[mode] || [];
+  const main = tools.slice(0,8); 
+  const more = tools.slice(8);
+
+  main.forEach(t => {
+    const btn = document.createElement('button'); 
+    btn.className='tool'; 
+    btn.innerHTML = t.name; 
+    btn.title = `${t.label}${t.shortcut ? ` (${t.shortcut})` : ''}`;
+    btn.onclick = ()=> handleToolAction(t, targetEditor);
+    container.appendChild(btn);
+  });
+
+  if(more.length){
+    const moreBtn = document.createElement('button'); 
+    moreBtn.className='tool'; 
+    moreBtn.innerHTML='More ▼'; 
+    moreBtn.title='More formatting options';
+    moreBtn.onclick = (e)=> {
+      e.stopPropagation();
+      if(dropdownOpenFor === moreBtn){ hideDropdown(); return; }
+      showDropdown(more, moreBtn, (tool)=> handleToolAction(tool, targetEditor));
+    };
+    container.appendChild(moreBtn);
+  }
+}
+
+/* ---------- Enhanced tool actions with GitHub-like behaviors ---------- */
+function handleToolAction(tool, targetEditor){
+  targetEditor = targetEditor || editor;
+  const s = targetEditor.selectionStart ?? 0;
+  const e = targetEditor.selectionEnd ?? 0;
+  const selected = (targetEditor.value || '').substring(s,e);
+  
+  if(tool.custom){
+    switch(tool.name){
+      case '🔗 Link': case 'Link': {
+        const url = prompt('Enter URL:', selected.startsWith('http') ? selected : 'https://');
+        if(!url) return;
+        const label = prompt('Link text:', selected && !selected.startsWith('http') ? selected : 'link');
+        if(!label) return;
+        const insert = mode==='markdown' ? 
+          `[${label}](${url})` : 
+          mode==='asciidoc' ? 
+          `${url}[${label}]` :
+          `<a href="${escapeHtml(url)}">${escapeHtml(label)}</a>`;
+        replaceSelection(targetEditor, insert);
+        break;
+      }
+      case '🖼 Image': case 'Image': {
+        const url = prompt('Image URL:', 'https://');
+        if(!url) return;
+        const alt = prompt('Alt text:', 'image');
+        if(!alt) return;
+        const insert = mode==='markdown' ?
+          `![${alt}](${url})` :
+          mode==='asciidoc' ?
+          `image::${url}[${alt}]` :
+          `<img src="${escapeHtml(url)}" alt="${escapeHtml(alt)}">`;
+        replaceSelection(targetEditor, insert);
+        break;
+      }
+      case '📊 Table': case 'Table': {
+        const rows = parseInt(prompt('Number of rows:', '3')) || 3;
+        const cols = parseInt(prompt('Number of columns:', '3')) || 3;
+        
+        if(mode === 'markdown') {
+          let table = '\n';
+          // Header row
+          table += '|';
+          for(let i = 0; i < cols; i++) table += ` Header ${i+1} |`;
+          table += '\n|';
+          for(let i = 0; i < cols; i++) table += '---|';
+          table += '\n';
+          // Data rows
+          for(let r = 0; r < rows-1; r++) {
+            table += '|';
+            for(let c = 0; c < cols; c++) table += ` Cell ${r+1}-${c+1} |`;
+            table += '\n';
+          }
+          insertAtCursor(targetEditor, table);
+        } else if(mode === 'html') {
+          let table = '<table>\n<thead>\n<tr>';
+          for(let i = 0; i < cols; i++) table += `<th>Header ${i+1}</th>`;
+          table += '</tr>\n</thead>\n<tbody>\n';
+          for(let r = 0; r < rows-1; r++) {
+            table += '<tr>';
+            for(let c = 0; c < cols; c++) table += `<td>Cell ${r+1}-${c+1}</td>`;
+            table += '</tr>\n';
+          }
+          table += '</tbody>\n</table>';
+          insertAtCursor(targetEditor, table);
+        }
+        break;
+      }
+      case 'UPPER': case 'Uppercase': {
+        if(s !== e) replaceSelection(targetEditor, selected.toUpperCase());
+        break;
+      }
+      case 'lower': case 'Lowercase': {
+        if(s !== e) replaceSelection(targetEditor, selected.toLowerCase());
+        break;
+      }
+      case 'Title': case 'Title Case': {
+        if(s !== e) {
+          const titleCase = selected.replace(/\w\S*/g, (txt) => 
+            txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase());
+          replaceSelection(targetEditor, titleCase);
+        }
+        break;
+      }
+      case '+ Row': case 'Add Row': {
+        insertAtCursor(targetEditor, '\nnew_col1,new_col2,new_col3');
+        break;
+      }
+      case '+ Col': case 'Add Column': {
+        showStatus('Add column: manually edit CSV headers and data rows');
+        break;
+      }
+      case 'key:': case 'Key: Value': {
+        insertAtCursor(targetEditor, '\nkey: value');
+        break;
+      }
+      case '📝 Validate': case 'Validate JSON': case 'Validate YAML': {
+        try {
+          if(mode === 'json') {
+            JSON.parse(targetEditor.value);
+            showStatus('✓ Valid JSON');
+          } else if(mode === 'yml') {
+            jsyaml.load(targetEditor.value);
+            showStatus('✓ Valid YAML');
+          }
+        } catch(err) {
+          showStatus(`❌ Invalid: ${err.message}`, 5000);
+        }
+        break;
+      }
+      case '🎨 Format': case 'Format JSON': {
+        try {
+          const parsed = JSON.parse(targetEditor.value);
+          targetEditor.value = JSON.stringify(parsed, null, 2);
+          if(targetEditor === editor && activeFileIndex !== null) {
+            files[activeFileIndex].content = targetEditor.value;
+          }
+          triggerUpdate();
+          showStatus('✓ JSON formatted');
+        } catch(err) {
+          showStatus(`❌ Cannot format: ${err.message}`, 5000);
+        }
+        break;
+      }
+      default: console.log('Unhandled custom tool:', tool);
+    }
+  } else if(tool.wrap){
+    const wrapped = tool.wrap[0] + selected + tool.wrap[1];
+    replaceSelection(targetEditor, wrapped);
+  } else if(tool.text){
+    insertAtCursor(targetEditor, tool.text);
+  }
+  
+  targetEditor.focus();
+  if(targetEditor === editor && activeFileIndex !== null) {
+    files[activeFileIndex].content = targetEditor.value;
+  }
+  triggerUpdate();
+  persistLast();
+}
+
+function replaceSelection(targetEditor, text) {
+  const s = targetEditor.selectionStart ?? 0;
+  const e = targetEditor.selectionEnd ?? 0;
+  targetEditor.setRangeText(text, s, e, 'end');
+  autoSizeTextarea(targetEditor);
+}
+
+function insertAtCursor(targetEditor, text){
+  const s = targetEditor.selectionStart ?? 0;
+  const e = targetEditor.selectionEnd ?? 0;
+  const val = targetEditor.value || '';
+  targetEditor.value = val.slice(0,s) + text + val.slice(e);
+  const pos = s + text.length;
+  targetEditor.setSelectionRange(pos,pos);
+  autoSizeTextarea(targetEditor);
+}
+
+/* ---------- File operations ---------- */
+uploadBtn.addEventListener('click', () => {
+  fileUploadInput.click();
+});
+
+fileUploadInput.addEventListener('change', (ev) => {
+  const list = Array.from(ev.target.files || []);
+  if (!list.length) return;
+  
+  showStatus(`Loading ${list.length} file(s)...`);
+  
+  list.forEach((f, index) => {
+    const r = new FileReader();
+    r.onload = (e) => {
+      files.push({
+        id: uid(),
+        name: f.name,
+        content: e.target.result,
+        selected: true,
+        type: detectTypeFromName(f.name)
+      });
+      renderFileList();
+      
+      if (index === list.length - 1) {
+        loadFile(files.length - 1);
+        showStatus(`Loaded ${list.length} file(s) successfully`);
+      }
+      
+      persistLast();
+    };
+    r.onerror = () => { 
+      showStatus(`Failed to read file: ${f.name}`, 5000);
+    };
+    r.readAsText(f);
+  });
+  ev.target.value = '';
+});
+
+mergeBtn.addEventListener('click', ()=> mergeSelectedFiles());
+
+function detectTypeFromName(name){
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  const typeMap = {
+    'md': 'markdown', 'markdown': 'markdown',
+    'html': 'html', 'htm': 'html',
+    'txt': 'txt',
+    'adoc': 'asciidoc',
+    'yml': 'yml', 'yaml': 'yml',
+    'csv': 'csv',
+    'org': 'org',
+    'json': 'json',
+    'css': 'css',
+    'js': 'js', 'javascript': 'js'
+  };
+  return typeMap[ext] || 'txt';
+}
+
+function renderFileList(filter=''){
+  fileListEl.innerHTML = '';
+  const filtered = files.filter(f => 
+    (f.name + '\n' + f.content).toLowerCase().includes((filter||'').toLowerCase())
+  );
+  
+  filtered.forEach((f)=>{
+    const index = files.indexOf(f);
+    const el = document.createElement('div'); 
+    el.className='file-item';
+    el.innerHTML = `
+      <div class="left" title="${escapeHtml(f.name)}" style="flex:1;min-width:0">
+        <div class="name" style="font-weight:600">${escapeHtml(f.name)}</div>
+        <div style="font-size:.85rem;color:var(--muted);margin-top:2px">${escapeHtml(f.type || '')}</div>
+      </div>
+      <div class="actions">
+        <a title="Open popout" data-idx="${index}" class="file-popout">↗</a>
+        <button title="Remove file" class="file-remove" data-idx="${index}" aria-label="Remove file">🗑</button>
+        <input type="checkbox" ${f.selected ? 'checked' : ''} data-idx="${index}" />
+      </div>
+    `;
+    
+    el.querySelector('.left').addEventListener('click', ()=> loadFile(index));
+    el.querySelector('.file-popout').addEventListener('click', (ev)=>{ 
+      ev.stopPropagation(); 
+      openPopout(index); 
+    });
+    el.querySelector('.file-remove').addEventListener('click', (ev)=>{ 
+      ev.stopPropagation(); 
+      removeFile(Number(ev.currentTarget.getAttribute('data-idx'))); 
+    });
+    el.querySelector('input[type=checkbox]').addEventListener('click', (ev)=>{ 
+      ev.stopPropagation(); 
+      const idx = Number(ev.currentTarget.getAttribute('data-idx')); 
+      files[idx].selected = ev.target.checked; 
+      persistLast(); 
+    });
+    
+    fileListEl.appendChild(el);
+  });
+}
+
+function removeFile(index){
+  if(index == null || !files[index]) return;
+  const name = files[index].name;
+  if(!confirm(`Remove file "${name}"?`)) return;
+  
+  files.splice(index,1);
+  if(activeFileIndex === index) { 
+    activeFileIndex = null; 
+    editor.value = ''; 
+    preview.innerHTML = ''; 
+    updateFileInfo();
+  } else if(activeFileIndex > index) {
+    activeFileIndex--;
+  }
+  
+  renderFileList();
+  persistLast();
+  showStatus(`Removed ${name}`);
+}
+
+function loadFile(index){
+  if(index == null || !files[index]) return;
+  
+  activeFileIndex = index;
+  const f = files[index];
+  mode = f.type || 'txt';
+  fileTypeSelect.value = mode;
+  editor.value = f.content || '';
+  
+  // Auto-size and update UI
+  autoSizeTextarea(editor);
+  updateLineNumbers();
+  updateFileInfo();
+  updateWordCount();
+  renderToolbarFor(toolbarEl, editor);
+  
+  // Force alignment sync
+  syncPaneAlignment();
+  triggerUpdate();
+  
+  // Scroll to top and ensure proper layout
+  if(sharedScroll) {
+    sharedScroll.scrollTop = 0;
+  }
+  
+  showStatus(`Loaded ${f.name}`);
+  persistLast();
+}
+
+function updateFileInfo() {
+  if (!fileInfoEl) return;
+  
+  if (activeFileIndex !== null && files[activeFileIndex]) {
+    const file = files[activeFileIndex];
+    const lines = editor.value ? editor.value.split('\n').length : 0;
+    fileInfoEl.textContent = `${file.name} (${file.type.toUpperCase()}) • ${lines} lines`;
+  } else {
+    fileInfoEl.textContent = 'No file selected';
+  }
+}
+
+function mergeSelectedFiles(){
+  const selected = files.filter(f => f.selected);
+  if(!selected.length){ 
+    showStatus('No files selected to merge', 3000);
+    return; 
+  }
+  
+  const mergedContent = selected
+    .map(f => `# ${f.name}\n\n${f.content}`)
+    .join('\n\n---\n\n');
+    
+  const mergedFile = { 
+    id: uid('merged'), 
+    name: `merged-${Date.now().toString(36)}.md`, 
+    content: mergedContent, 
+    selected: false, 
+    type: 'markdown'
+  };
+  
+  files.push(mergedFile);
+  renderFileList();
+  loadFile(files.length-1);
+  showStatus(`Merged ${selected.length} files`);
+  persistLast();
+}
+
+exportBtn.addEventListener('click', ()=> doExport());
+
+async function doExport(){
+  const extMap = {
+    markdown:'md', html:'html', txt:'txt', asciidoc:'adoc', 
+    csv:'csv', yml:'yml', org:'org', json:'json', css:'css', js:'js'
+  };
+  const ext = extMap[mode] || 'txt';
+  const name = (activeFileIndex!==null && files[activeFileIndex] && files[activeFileIndex].name) ? 
+    files[activeFileIndex].name.replace(/\.[^/.]+$/,'') : 'file';
+  
+  const blob = new Blob([editor.value || ''], {type:'text/plain;charset=utf-8'});
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(blob); 
+  a.download = `${name}.${ext}`; 
+  document.body.appendChild(a); 
+  a.click(); 
+  a.remove(); 
+  URL.revokeObjectURL(a.href);
+  
+  showStatus(`Exported ${name}.${ext}`);
+}
+
+clearFilesBtn.addEventListener('click', ()=> confirmClear.style.display = 'block');
+cancelClear.addEventListener('click', ()=> confirmClear.style.display = 'none');
+doClear.addEventListener('click', ()=> {
+  files=[]; 
+  activeFileIndex=null; 
+  editor.value=''; 
+  mode='markdown'; 
+  fileTypeSelect.value=mode; 
+  renderFileList(); 
+  renderToolbarFor(toolbarEl, editor); 
+  triggerUpdate(); 
+  confirmClear.style.display='none';
+  updateFileInfo();
+  updateWordCount();
+  showStatus('All files cleared');
+  persistLast();
+});
+
+searchInput.addEventListener('input', ()=> renderFileList(searchInput.value));
+fileTypeSelect.addEventListener('change', (e)=>{ 
+  mode = e.target.value; 
+  if(activeFileIndex !== null) files[activeFileIndex].type = mode; 
+  renderToolbarFor(toolbarEl, editor); 
+  triggerUpdate(); 
+  updateFileInfo();
+  persistLast(); 
+});
+
+/* ---------- Auto-size helper ---------- */
+function autoSizeTextarea(el){
+  if(!el) return;
+  el.style.height = 'auto';
+  try { 
+    el.style.height = Math.max(el.scrollHeight + 2, 100) + 'px'; 
+  } catch(e){ 
+    el.style.height = '200px'; 
+  }
+}
+
+/* ---------- Enhanced preview rendering with perfect syntax highlighting ---------- */
+const asciidoctor = window.Asciidoctor && window.Asciidoctor();
+
+function csvToTableHtml(csv){
+  try {
+    const rows = Papa.parse(csv || '').data;
+    if(!rows || !rows.length) return '<div style="opacity:.7">Empty CSV</div>';
+    
+    let html = '<table style="width:100%;border-collapse:collapse;margin:8px 0"><thead><tr>';
+    rows[0].forEach(cell => 
+      html += `<th style="border:1px solid var(--border);padding:6px;text-align:left;background:#161b22">${escapeHtml(String(cell || ''))}</th>`
+    );
+    html += '</tr></thead><tbody>';
+    
+    rows.slice(1).forEach(row => { 
+      html += '<tr>'; 
+      row.forEach(cell => 
+        html += `<td style="border:1px solid var(--border);padding:6px">${escapeHtml(String(cell || ''))}</td>`
+      ); 
+      html += '</tr>'; 
+    });
+    html += '</tbody></table>';
+    return html;
+  } catch(e){ 
+    return `<pre style="color:#f88">CSV Parse Error: ${escapeHtml(String(e))}</pre>`; 
+  }
+}
+
+function jsonPrettyRender(s){
+  try {
+    const obj = JSON5.parse(s);
+    const formatted = JSON.stringify(obj, null, 2);
+    return syntaxHighlightingEnabled && window.hljs ? 
+      `<pre><code class="hljs language-json">${hljs.highlight(formatted, {language: 'json'}).value}</code></pre>` :
+      `<pre><code class="language-json">${escapeHtml(formatted)}</code></pre>`;
+  } catch(e){
+    try {
+      const parsed = JSON.parse(s);
+      const formatted = JSON.stringify(parsed, null, 2);
+      return syntaxHighlightingEnabled && window.hljs ?
+        `<pre><code class="hljs language-json">${hljs.highlight(formatted, {language: 'json'}).value}</code></pre>` :
+        `<pre><code class="language-json">${escapeHtml(formatted)}</code></pre>`;
+    } catch(err){
+      return `<pre style="color:#f88">JSON Parse Error: ${escapeHtml(String(err.message))}</pre>`;
+    }
+  }
+}
+
+function yamlPrettyRender(s){
+  try {
+    const obj = jsyaml.load(s);
+    const asJson = JSON.stringify(obj, null, 2);
+    return syntaxHighlightingEnabled && window.hljs ?
+      `<pre><code class="hljs language-yaml">${hljs.highlight(s, {language: 'yaml'}).value}</code></pre>` :
+      `<pre><code class="language-yaml">${escapeHtml(s)}</code></pre>`;
+  } catch(e){
+    return `<pre style="color:#f88">YAML Parse Error: ${escapeHtml(String(e.message))}</pre>`;
+  }
+}
+
+/* ---------- FIXED: Enhanced preview update system with proper syntax highlighting ---------- */
+function updatePreview(previewContainer = preview, content = editor.value, currentMode = mode) {
+  try {
+    if (currentMode === 'markdown') {
+      // Use markdown-it with enhanced processing
+      let rendered = md.render(content);
+      previewContainer.innerHTML = rendered || '<div style="opacity:.7">Empty</div>';
+      
+      // CRITICAL FIX: Process ALL code elements for syntax highlighting
+      previewContainer.querySelectorAll('code').forEach(codeEl => {
+        // Skip if already processed
+        if (codeEl.classList.contains('hljs') || codeEl.closest('pre')) return;
+        
+        // This is inline code - apply styling
+        codeEl.classList.add('inline-code-highlight');
+        const codeText = codeEl.textContent;
+        
+        if (syntaxHighlightingEnabled && window.hljs && codeText.trim().length > 0) {
+          try {
+            // Simple language detection for inline code
+            let detectedLang = 'plaintext';
+            if (/^[a-zA-Z_$][a-zA-Z0-9_$]*\s*[\(\[\{=]/.test(codeText)) {
+              detectedLang = 'javascript';
+            } else if (/^[\w-]+\s*:\s*[\w-]+/.test(codeText)) {
+              detectedLang = 'css';
+            } else if (/^<[^>]+>/.test(codeText)) {
+              detectedLang = 'html';
+            }
+            
+            const highlighted = hljs.highlight(codeText, { language: detectedLang });
+            codeEl.innerHTML = highlighted.value;
+            codeEl.classList.add('hljs', `language-${detectedLang}`);
+          } catch (e) {
+            // Keep original if highlighting fails
+            console.warn('Inline code highlighting failed:', e);
+          }
+        }
+      });
+      
+    } else if (currentMode === 'html') {
+      const sanitized = DOMPurify.sanitize(content, {SAFE_FOR_TEMPLATES: true});
+      previewContainer.innerHTML = sanitized || '<div style="opacity:.7">Empty HTML</div>';
+      
+    } else if (currentMode === 'csv') {
+      previewContainer.innerHTML = csvToTableHtml(content);
+      
+    } else if (currentMode === 'json') {
+      previewContainer.innerHTML = jsonPrettyRender(content);
+      
+    } else if (currentMode === 'yml' || currentMode === 'yaml') {
+      previewContainer.innerHTML = yamlPrettyRender(content);
+      
+    } else if (currentMode === 'asciidoc') {
+      try { 
+        const rendered = asciidoctor ? asciidoctor.convert(content) : escapeHtml(content);
+        previewContainer.innerHTML = rendered || '<div style="opacity:.7">Empty AsciiDoc</div>';
+      } catch (e) { 
+        previewContainer.innerHTML = `<pre style="color:#f88">AsciiDoc Error: ${escapeHtml(String(e.message))}</pre>`; 
+      }
+      
+    } else {
+      // Plain text, CSS, JS, or other code
+      const lang = currentMode === 'css' ? 'css' : 
+                   currentMode === 'js' ? 'javascript' : 
+                   currentMode === 'org' ? 'org' : 'plaintext';
+      
+      if (syntaxHighlightingEnabled && window.hljs && ['css', 'javascript'].includes(lang)) {
+        try {
+          const highlighted = hljs.highlight(content, { language: lang });
+          previewContainer.innerHTML = `<pre><code class="hljs language-${lang}">${highlighted.value}</code></pre>`;
+        } catch (e) {
+          previewContainer.innerHTML = `<pre><code class="language-${lang}">${escapeHtml(content)}</code></pre>`;
+        }
+      } else {
+        previewContainer.innerHTML = `<pre><code class="language-${lang}">${escapeHtml(content)}</code></pre>`;
+      }
+    }
+
+    // CRITICAL: Apply syntax highlighting to ALL remaining code blocks
+    if (window.hljs && syntaxHighlightingEnabled) {
+      previewContainer.querySelectorAll('pre code').forEach(block => {
+        if (!block.classList.contains('hljs')) {
+          try { 
+            hljs.highlightElement(block);
+          } catch (e) {
+            console.warn('Block highlighting failed:', e);
+          }
+        }
+      });
+    }
+    
+    // CRITICAL: Force height sync after content update
+    setTimeout(() => {
+      syncPaneAlignment();
+      forceHeightSync();
+    }, 100);
+    
+  } catch (e) {
+    console.error('Preview update error:', e);
+    previewContainer.innerHTML = `<pre style="color:#f88">Render error: ${escapeHtml(e.message || String(e))}</pre>`;
+  }
+}
+
+function triggerUpdate() { 
+  updatePreview(); 
+  updateLineNumbers();
+  syncPaneAlignment();
+    forceHeightSync();
+}
+
+/* ---------- FIXED: Enhanced editor input handling ---------- */
+function mainEditorInputHandler(){
+  if(activeFileIndex !== null) files[activeFileIndex].content = editor.value;
+  autoSizeTextarea(editor);
+  updateLineNumbers();
+  updateWordCount();
+  triggerUpdate();
+  persistLast();
+}
+
+// CRITICAL: Enhanced event listeners with immediate response
+editor.addEventListener('input', mainEditorInputHandler, {passive:true});
+editor.addEventListener('keyup', mainEditorInputHandler, {passive:true});
+editor.addEventListener('paste', () => setTimeout(mainEditorInputHandler, 100), {passive:true});
+editor.addEventListener('cut', () => setTimeout(mainEditorInputHandler, 100), {passive:true});
+
+/* ---------- FIXED: Auto-size helper ---------- */
+function autoSizeTextarea(el){
+  if(!el) return;
+  
+  // Reset height to auto to get accurate scrollHeight
+  el.style.height = 'auto';
+  
+  try { 
+    const newHeight = Math.max(el.scrollHeight + 10, 300);
+    el.style.height = newHeight + 'px';
+    el.style.minHeight = newHeight + 'px';
+    
+    // Force height sync after auto-sizing
+    setTimeout(forceHeightSync, 50);
+  } catch(e){ 
+    el.style.height = '100px'; 
+    el.style.minHeight = '100px';
+  }
+}
+
+/* ---------- Popout modal (enhanced) ---------- */
+function openPopout(index){
+  const file = files[index];
+  if(!file) return;
+  
+  const overlay = document.createElement('div'); 
+  overlay.className='modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true">
+      <div class="head">
+        <div style="display:flex;gap:.6rem;align-items:center">
+          <strong>${escapeHtml(file.name)}</strong>
+          <span style="color:var(--muted);font-size:0.9rem">(${file.type})</span>
+        </div>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <select id="pop-type" class="select">
+            <option value="markdown">Markdown</option>
+            <option value="html">HTML</option>
+            <option value="txt">Plain Text</option>
+            <option value="asciidoc">AsciiDoc</option>
+            <option value="csv">CSV</option>
+            <option value="yml">YAML</option>
+            <option value="org">Org</option>
+            <option value="json">JSON</option>
+            <option value="css">CSS</option>
+            <option value="js">JS</option>
+          </select>
+          <button id="pop-export" class="btn">Export</button>
+          <button id="pop-save" class="btn">Save</button>
+          <button id="pop-close" class="btn secondary">Close</button>
+        </div>
+      </div>
+      <div id="pop-toolbar-container" class="pop-toolbar"></div>
+      <div class="body" style="display:flex;flex:1;overflow:auto">
+        <div class="pop-shared-scroll">
+          <div class="pane pane-left" style="flex:1;display:flex;flex-direction:column;">
+            <div class="editor-container" style="display:flex;flex:1;">
+              <div class="line-numbers popout-line-numbers" style="background:var(--bg);min-width:50px;"></div>
+              <div class="editor-wrapper" style="flex:1;">
+                <textarea id="pop-editor" class="editor" spellcheck="false" style="width:100%;"></textarea>
+              </div>
+            </div>
+          </div>
+          <div class="pane pane-right" style="flex:1;display:flex;flex-direction:column;">
+            <div class="preview-container" style="display:flex;flex:1;">
+              <div class="line-numbers preview-line-numbers" style="background:var(--panel);min-width:50px;"></div>
+              <div id="pop-preview" class="preview" style="flex:1;"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+  popoutContainer.appendChild(overlay);
+
+  const popEditor = overlay.querySelector('#pop-editor');
+  const popPreview = overlay.querySelector('#pop-preview');
+  const popType = overlay.querySelector('#pop-type');
+  const popExport = overlay.querySelector('#pop-export');
+  const popClose = overlay.querySelector('#pop-close');
+  const popSave = overlay.querySelector('#pop-save');
+  const popToolbarContainer = overlay.querySelector('#pop-toolbar-container');
+  const popSharedScroll = overlay.querySelector('.pop-shared-scroll');
+
+  popType.value = file.type || mode || 'txt';
+  popEditor.value = file.content || '';
+  autoSizeTextarea(popEditor);
+
+  // Update line numbers for popout
+  function updatePopoutLineNumbers() {
+    const lineNumbersEl = overlay.querySelector('.popout-line-numbers');
+    const previewLineNumbersEl = overlay.querySelector('.preview-line-numbers');
+    if (lineNumbersEl && previewLineNumbersEl) {
+      const lines = popEditor.value.split('\n');
+      const lineCount = lines.length;
+      
+      let lineNumbersHTML = '';
+      for (let i = 1; i <= lineCount; i++) {
+        lineNumbersHTML += `<span class="line">${i}</span>\n`;
+      }
+      
+      lineNumbersEl.innerHTML = lineNumbersHTML;
+      previewLineNumbersEl.innerHTML = lineNumbersHTML;
+    }
+  }
+
+  // render toolbar for popout
+  const saveMode = mode;
+  mode = popType.value;
+  renderToolbarFor(popToolbarContainer, popEditor);
+  mode = saveMode;
+
+  function popUpdate(){
+    updatePreview(popPreview, popEditor.value, popType.value);
+    updatePopoutLineNumbers();
+    syncPaneAlignment();
+  }
+  
+  popUpdate();
+
+  // Enhanced popout input handling
+  let popUpdateTimeout;
+  popEditor.addEventListener('input', ()=> {
+    file.content = popEditor.value;
+    autoSizeTextarea(popEditor);
+    
+    clearTimeout(popUpdateTimeout);
+    popUpdateTimeout = setTimeout(() => {
+      popUpdate();
+      
+      // Mirror to main editor if this is the active file
+      if(activeFileIndex === index){
+        editor.value = popEditor.value;
+        autoSizeTextarea(editor);
+        updateLineNumbers();
+        triggerUpdate();
+      }
+    }, 100);
+    
+    persistLast();
+  });
+
+  popType.addEventListener('change', ()=> {
+    file.type = popType.value;
+    if(activeFileIndex === index){ 
+      mode = file.type; 
+      fileTypeSelect.value = mode; 
+      renderToolbarFor(toolbarEl, editor); 
+      triggerUpdate(); 
+      updateFileInfo();
+    }
+    const prev = mode; 
+    mode = popType.value; 
+    renderToolbarFor(popToolbarContainer, popEditor); 
+    mode = prev;
+    popUpdate();
+    persistLast();
+  });
+
+  popExport.addEventListener('click', ()=> {
+    const extMap = { 
+      markdown:'md', html:'html', txt:'txt', asciidoc:'adoc', 
+      csv:'csv', yml:'yml', org:'org', json:'json', css:'css', js:'js' 
+    };
+    const ext = extMap[popType.value] || 'txt';
+    const blob = new Blob([popEditor.value || ''], {type:'text/plain;charset=utf-8'});
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    a.download = (file.name.replace(/\.[^/.]+$/,'') || 'file') + '.' + ext; 
+    document.body.appendChild(a); 
+    a.click(); 
+    a.remove(); 
+    URL.revokeObjectURL(a.href);
+    showStatus(`Exported ${file.name}`);
+  });
+
+  popSave.addEventListener('click', ()=> {
+    file.content = popEditor.value;
+    if(activeFileIndex === index){
+      editor.value = popEditor.value;
+      autoSizeTextarea(editor);
+      updateLineNumbers();
+      triggerUpdate();
+    }
+    persistLast();
+    showStatus('Changes saved successfully!');
+  });
+
+  popClose.addEventListener('click', ()=> {
+    overlay.remove();
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  // Focus popout editor
+  setTimeout(() => {
+    popEditor.focus();
+    syncPaneAlignment();
+  }, 100);
+}
+
+/* ---------- FIXED: Enhanced control buttons with proper functionality ---------- */
+mainPopoutBtn.addEventListener('click', ()=> {
+  if(activeFileIndex !== null) {
+    openPopout(activeFileIndex);
+  } else {
+    showStatus('Open a file first', 3000);
+  }
+});
+
+fullscreenBtn.addEventListener('click', ()=> {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().then(() => {
+      showStatus('Entered fullscreen mode');
+    }).catch(err => {
+      showStatus('Fullscreen not supported', 3000);
+    });
+  } else {
+    document.exitFullscreen().then(() => {
+      showStatus('Exited fullscreen mode');
+    });
+  }
+});
+
+toggleLineNumbersBtn.addEventListener('click', ()=> {
+  const lineNumbers = document.querySelectorAll('.line-numbers');
+  const isHidden = lineNumbers[0]?.style.display === 'none';
+  
+  lineNumbers.forEach(el => {
+    el.style.display = isHidden ? 'block' : 'none';
+  });
+  
+  showStatus(`Line numbers ${isHidden ? 'shown' : 'hidden'}`);
+});
+
+toggleWordWrapBtn.addEventListener('click', ()=> {
+  wordWrapEnabled = !wordWrapEnabled;
+  syncPaneAlignment();
+  showStatus(`Word wrap ${wordWrapEnabled ? 'enabled' : 'disabled'}`);
+});
+
+toggleSyntaxHighlightingBtn.addEventListener('click', ()=> {
+  syntaxHighlightingEnabled = !syntaxHighlightingEnabled;
+  
+  // Update main preview
+  triggerUpdate();
+  
+  // Update all popout previews
+  document.querySelectorAll('#pop-preview').forEach(preview => {
+    const popEditor = preview.closest('.modal').querySelector('#pop-editor');
+    const popType = preview.closest('.modal').querySelector('#pop-type');
+    if (popEditor && popType) {
+      updatePreview(preview, popEditor.value, popType.value);
+    }
+  });
+  
+  showStatus(`Syntax highlighting ${syntaxHighlightingEnabled ? 'enabled' : 'disabled'}`);
+  persistLast();
+});
+
+// MISSING: Toggle theme functionality
+const toggleThemeBtn = document.getElementById('toggle-theme');
+if (toggleThemeBtn) {
+  toggleThemeBtn.addEventListener('click', ()=> {
+    document.body.classList.toggle('light-theme');
+    showStatus('Theme toggled (basic implementation)');
+  });
+}
+
+// MISSING: Toggle minimap functionality  
+const toggleMinimapBtn = document.getElementById('toggle-minimap');
+if (toggleMinimapBtn) {
+  toggleMinimapBtn.addEventListener('click', ()=> {
+    showStatus('Minimap feature not yet implemented');
+  });
+}
+
+/* ---------- Keyboard shortcuts ---------- */
+document.addEventListener('keydown', (e)=>{
+  // Skip if typing in an input field
+  if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) {
+    // Handle editor-specific shortcuts
+    if (e.target.classList.contains('editor')) {
+      handleEditorShortcuts(e, e.target);
+    }
+    return;
+  }
+
+  // Global shortcuts
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='s'){
+    e.preventDefault(); 
+    doExport(); 
+  }
+  if((e.ctrlKey||e.metaKey) && e.key === 'Enter'){
+    e.preventDefault();
+    fullscreenBtn.click();
+  }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='o'){
+    e.preventDefault();
+    uploadBtn.click();
+  }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='l'){
+    e.preventDefault();
+    toggleLineNumbersBtn.click();
+  }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='m'){
+    e.preventDefault();
+    mergeBtn.click();
+  }
+});
+
+function handleEditorShortcuts(e, targetEditor) {
+  const shortcuts = {
+    'b': () => handleToolAction({wrap:['**','**']}, targetEditor),
+    'i': () => handleToolAction({wrap:['*','*']}, targetEditor),
+    'e': () => handleToolAction({wrap:['`','`']}, targetEditor),
+    'k': () => handleToolAction({name:'🔗 Link', custom:true}, targetEditor),
+    '1': () => handleToolAction({wrap:['# ','']}, targetEditor),
+    '2': () => handleToolAction({wrap:['## ','']}, targetEditor),
+    '3': () => handleToolAction({wrap:['### ','']}, targetEditor),
+  };
+  
+  if ((e.ctrlKey || e.metaKey) && shortcuts[e.key.toLowerCase()]) {
+    e.preventDefault();
+    shortcuts[e.key.toLowerCase()]();
+  }
+  
+  // Shift combinations
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey) {
+    const shiftShortcuts = {
+      'k': () => handleToolAction({wrap:['```\n','\n```']}, targetEditor),
+      'i': () => handleToolAction({name:'🖼 Image', custom:true}, targetEditor),
+      't': () => handleToolAction({name:'📊 Table', custom:true}, targetEditor),
+      '.': () => handleToolAction({wrap:['> ','']}, targetEditor),
+      '8': () => handleToolAction({wrap:['- ','']}, targetEditor),
+      '7': () => handleToolAction({wrap:['1. ','']}, targetEditor),
+    };
+    
+    if (shiftShortcuts[e.key.toLowerCase()]) {
+      e.preventDefault();
+      shiftShortcuts[e.key.toLowerCase()]();
+    }
+  }
+}
+
+/* ---------- Persistence helpers ---------- */
+async function persistLast(){ 
+  try { 
+    await idbSet('ee-enhanced', { 
+      files, 
+      activeFileIndex, 
+      syntaxHighlightingEnabled,
+      wordWrapEnabled 
+    }); 
+  } catch(e){
+    console.warn('Persistence error:', e);
+  } 
+}
+
+async function restoreLast(){
+  try {
+    const saved = await idbGet('ee-enhanced');
+    if(saved && saved.files && saved.files.length){
+      files = saved.files; 
+      activeFileIndex = saved.activeFileIndex ?? null;
+      syntaxHighlightingEnabled = saved.syntaxHighlightingEnabled ?? true;
+      wordWrapEnabled = saved.wordWrapEnabled ?? true;
+      
+      renderFileList();
+      if(activeFileIndex !== null && files[activeFileIndex]) {
+        loadFile(activeFileIndex);
+      }
+      syncPaneAlignment();
+    }
+  } catch(e) {
+    console.warn('Restore error:', e);
+  }
+}
+
+/* ---------- Initialization ---------- */
+(async function init(){
+  renderToolbarFor(toolbarEl, editor);
+  await restoreLast();
+  renderFileList();
+  
+  // Enhanced window resize handling
+  window.addEventListener('resize', ()=> { 
+    autoSizeTextarea(editor); 
+    if(globalDropdown.style.display==='block') hideDropdown(); 
+    syncPaneAlignment();
+  });
+
+  // Configure highlight.js
+  try { 
+    if(window.hljs) {
+      hljs.configure({ 
+        ignoreUnescapedHTML: true,
+        cssSelector: 'pre code, .hljs'
+      });
+    }
+  } catch(e){
+    console.warn('Highlight.js configuration error:', e);
+  }
+  
+  // Initialize with example content if empty
+  if(files.length === 0){
+    files.push({ 
+      id: uid(), 
+      name: 'enhanced-example.md', 
+      content: `# MergeSight-Editor
+
+## 🚀 New Features
+- **Perfect line-by-line alignment** with word wrap support
+- **Enhanced syntax highlighting** for inline code: \`const example = "highlighted"\`
+- **GitHub-identical toolbar** with keyboard shortcuts
+- **Improved workflows** and logic consistency
+
+### ✨ Syntax Highlighting Examples
+
+#### JavaScript
+\`\`\`javascript
+function enhancedEditor() {
+  const features = ['alignment', 'highlighting', 'shortcuts'];
+  return features.map(f => \`✓ \${f}\`);
+}
+\`\`\`
+
+#### CSS
+\`\`\`css
+.enhanced-preview {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  line-height: 1.5;
+}
+\`\`\`
+
+#### JSON
+\`\`\`json
+{
+  "enhanced": true,
+  "features": ["alignment", "highlighting", "shortcuts"],
+  "version": "2.0"
+}
+\`\`\`
+
+### 📋 Task List
+- [x] Perfect line-by-line alignment
+- [x] Enhanced syntax highlighting
+- [x] GitHub-like toolbar behaviors
+- [x] Fixed logic errors
+- [x] Improved workflows
+
+### 🎯 Keyboard Shortcuts
+- **Ctrl+B**: **Bold**
+- **Ctrl+I**: *Italic*
+- **Ctrl+E**: \`Inline code\`
+- **Ctrl+K**: Link
+- **Ctrl+1,2,3**: Headers
+- **Ctrl+S**: Export file
+- **Ctrl+O**: Upload files
+- **Ctrl+L**: Toggle line numbers
+
+> **Note**: This enhanced editor now provides perfect alignment between edit and preview panes, with comprehensive syntax highlighting and GitHub-identical formatting behaviors.
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Line alignment | ✅ | Perfect wrap sync |
+| Syntax highlighting | ✅ | Inline + block |
+| Toolbar actions | ✅ | GitHub-like |
+| Logic consistency | ✅ | Fixed workflows |
+
+---
+
+**Try the features above!** Edit this content and watch the preview update with perfect alignment and enhanced highlighting.`, 
+      selected: true, 
+      type: 'markdown' 
+    });
+    renderFileList();
+    loadFile(0);
+  }
+
+  // Initial UI setup
+  autoSizeTextarea(editor);
+  updateLineNumbers();
+  updateWordCount();
+  updateFileInfo();
+  updatePreview();
+  syncPaneAlignment();
+  
+  // Force initial alignment after content loads
+  setTimeout(() => {
+    syncPaneAlignment();
+    triggerUpdate();
+  }, 500);
+
+  showStatus('Enhanced GitHub-Style Editor ready!');
+})();
+</script>
+</body>
+</html>
