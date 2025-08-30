@@ -1,5 +1,7 @@
 # 🔀 MergeSight Editor
 
+* Currently working on bugs 
+
 **Smart text merge and comparison tool – Perfect for developers, writers, and content creators**
 
 [![Live Demo](https://img.shields.io/badge/🚀-Live%20Demo-success?style=for-the-badge)](https://neurosynlabs.github.io/MergeSight-Editor/)
